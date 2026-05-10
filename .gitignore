@@ -1,0 +1,9 @@
+bin/
+obj/
+target/
+.antigravity/
+node_modules/
+.vscode/
+*.user
+.agent/skills/
+setup/

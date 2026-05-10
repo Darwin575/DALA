@@ -1,0 +1,77 @@
+@page "/"
+@using BlazorHost.Services
+@inject RustInterop RustEngine
+
+<PageTitle>DALA - Home</PageTitle>
+
+<h1>DALA: Data Analyst Local App</h1>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">Rust Engine Outlier Detection</h5>
+        <p class="card-text">Send a numeric array to Rust via Web Workers.</p>
+        
+        <div class="mb-3">
+            <label class="form-label">Input Data (comma separated)</label>
+            <input type="text" class="form-control" @bind="inputData" placeholder="1, 2, 3, 100, 4, 5" />
+        </div>
+
+        <button class="btn btn-primary" @onclick="AnalyzeData" disabled="@isProcessing">
+            @if (isProcessing) {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span> Processing...</span>
+            } else {
+                <span>Run IQR Analysis</span>
+            }
+        </button>
+
+        @if (summary != null) {
+            <div class="mt-4 alert alert-info">
+                <h6>Results:</h6>
+                <ul>
+                    <li><strong>Outliers Found:</strong> @summary.Count</li>
+                    <li><strong>Outlier Values:</strong> @string.Join(", ", summary.Outliers)</li>
+                    <li><strong>Bounds:</strong> [@summary.LowerBound.ToString("F2"), @summary.UpperBound.ToString("F2")]</li>
+                </ul>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(error)) {
+            <div class="mt-4 alert alert-danger">
+                @error
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string inputData = "1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 100";
+    private OutlierSummary? summary;
+    private bool isProcessing = false;
+    private string? error;
+
+    private async Task AnalyzeData() {
+        try {
+            isProcessing = true;
+            error = null;
+            summary = null;
+
+            var data = inputData.Split(',')
+                .Select(s => double.TryParse(s.Trim(), out var d) ? d : (double?)null)
+                .Where(d => d.HasValue)
+                .Select(d => d!.Value)
+                .ToArray();
+
+            if (data.Length == 0) {
+                error = "Please enter valid numeric data.";
+                return;
+            }
+
+            summary = await RustEngine.DetectOutliersAsync(data);
+        } catch (Exception ex) {
+            error = $"Error: {ex.Message}";
+        } finally {
+            isProcessing = false;
+        }
+    }
+}
