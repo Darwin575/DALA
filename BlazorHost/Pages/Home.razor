@@ -1,6 +1,7 @@
 @page "/"
 @using BlazorHost.Services
 @inject RustInterop RustEngine
+@inject DuckDBInterop DuckDB
 
 <PageTitle>DALA - Home</PageTitle>
 
@@ -44,11 +45,40 @@
     </div>
 </div>
 
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">DuckDB Cleaning Hub</h5>
+        <p class="card-text">Local SQL-based Mean/Median Imputation.</p>
+
+        <div class="mb-3">
+            <label class="form-label">Data with Missing Values (null for missing)</label>
+            <input type="text" class="form-control" @bind="duckdbInput" placeholder="1, null, 3, null, 5" />
+        </div>
+
+        <div class="btn-group mb-3">
+            <button class="btn btn-outline-secondary" @onclick='() => Impute("mean")' disabled="@isDuckDBProcessing">Mean Imputation</button>
+            <button class="btn btn-outline-secondary" @onclick='() => Impute("median")' disabled="@isDuckDBProcessing">Median Imputation</button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(duckdbResult)) {
+            <div class="mt-4 alert alert-success">
+                <h6>Cleaned Data:</h6>
+                <pre>@duckdbResult</pre>
+            </div>
+        }
+    </div>
+</div>
+
 @code {
     private string inputData = "1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 100";
     private OutlierSummary? summary;
     private bool isProcessing = false;
     private string? error;
+
+    // DuckDB State
+    private string duckdbInput = "1, null, 3, null, 5, 10, 20";
+    private string? duckdbResult;
+    private bool isDuckDBProcessing = false;
 
     private async Task AnalyzeData() {
         try {
@@ -72,6 +102,27 @@
             error = $"Error: {ex.Message}";
         } finally {
             isProcessing = false;
+        }
+    }
+
+    private async Task Impute(string method) {
+        try {
+            isDuckDBProcessing = true;
+            duckdbResult = null;
+
+            var data = duckdbInput.Split(',')
+                .Select(s => {
+                    var trimmed = s.Trim().ToLower();
+                    if (trimmed == "null" || string.IsNullOrEmpty(trimmed)) return (double?)null;
+                    return double.TryParse(trimmed, out var d) ? d : (double?)null;
+                })
+                .ToArray();
+
+            duckdbResult = await DuckDB.ImputeMissingValuesAsync(data, method);
+        } catch (Exception ex) {
+            duckdbResult = $"Error: {ex.Message}";
+        } finally {
+            isDuckDBProcessing = false;
         }
     }
 }
