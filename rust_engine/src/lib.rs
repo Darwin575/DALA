@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
+use js_sys::Float64Array;
 
 #[derive(Serialize, Deserialize)]
 pub struct OutlierSummary {
@@ -10,19 +11,19 @@ pub struct OutlierSummary {
 }
 
 #[wasm_bindgen]
-pub fn detect_outliers(data: JsValue) -> Result<JsValue, JsValue> {
-    let mut values: Vec<f64> = serde_wasm_bindgen::from_value(data)?;
+pub fn detect_outliers(data: Float64Array) -> String {
+    let mut values: Vec<f64> = data.to_vec();
     
     if values.is_empty() {
-        return Ok(serde_wasm_bindgen::to_value(&OutlierSummary {
+        return serde_json::to_string(&OutlierSummary {
             count: 0,
             outliers: vec![],
             lower_bound: 0.0,
             upper_bound: 0.0,
-        })?);
+        }).unwrap_or_default();
     }
 
-    values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let q1 = quantile(&values, 0.25);
     let q3 = quantile(&values, 0.75);
@@ -42,7 +43,7 @@ pub fn detect_outliers(data: JsValue) -> Result<JsValue, JsValue> {
         upper_bound,
     };
 
-    Ok(serde_wasm_bindgen::to_value(&summary)?)
+    serde_json::to_string(&summary).unwrap_or_default()
 }
 
 fn quantile(sorted_data: &[f64], q: f64) -> f64 {

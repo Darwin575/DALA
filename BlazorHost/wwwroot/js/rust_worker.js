@@ -8,7 +8,7 @@ self.onmessage = async (e) => {
         self.postMessage({ status: 'ready' });
     } else if (action === 'detect_outliers') {
         try {
-            const result = detect_outliers(data);
+            const result = detect_outliers(new Float64Array(data));
             self.postMessage({ status: 'success', result });
         } catch (err) {
             self.postMessage({ status: 'error', error: err.toString() });

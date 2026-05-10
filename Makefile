@@ -2,7 +2,7 @@ RUST_DIR = rust_engine
 BLAZOR_DIR = BlazorHost
 WASM_OUT = $(BLAZOR_DIR)/wwwroot/js/rust_engine
 
-.PHONY: build-rust copy-wasm build-blazor run clean
+.PHONY: build-rust copy-wasm build-blazor build clean run
 
 build-rust:
 	cd $(RUST_DIR) && wasm-pack build --target web
@@ -14,7 +14,9 @@ copy-wasm:
 build-blazor:
 	cd $(BLAZOR_DIR) && dotnet build
 
+build: build-rust copy-wasm build-blazor
+
 run:
 	cd $(BLAZOR_DIR) && dotnet watch
 
-all: build-rust copy-wasm build-blazor
+all: build

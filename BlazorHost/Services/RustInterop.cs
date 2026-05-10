@@ -1,4 +1,5 @@
 using Microsoft.JSInterop;
+using System.Text.Json;
 
 namespace BlazorHost.Services;
 
@@ -24,7 +25,9 @@ public class RustInterop : IAsyncDisposable
     public async Task<OutlierSummary> DetectOutliersAsync(double[] data)
     {
         await InitializeAsync();
-        return await _jsRuntime.InvokeAsync<OutlierSummary>("rustInterop.detectOutliers", data);
+        var jsonResult = await _jsRuntime.InvokeAsync<string>("rustInterop.detectOutliers", data);
+        return JsonSerializer.Deserialize<OutlierSummary>(jsonResult, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) 
+               ?? new OutlierSummary();
     }
 
     public async ValueTask DisposeAsync()

@@ -1,5 +1,6 @@
 @page "/"
 @using BlazorHost.Services
+@using System.Text.Json
 @inject RustInterop RustEngine
 @inject DuckDBInterop DuckDB
 
@@ -7,67 +8,88 @@
 
 <h1>DALA: Data Analyst Local App</h1>
 
-<div class="card mt-4">
-    <div class="card-body">
-        <h5 class="card-title">Rust Engine Outlier Detection</h5>
-        <p class="card-text">Send a numeric array to Rust via Web Workers.</p>
-        
-        <div class="mb-3">
-            <label class="form-label">Input Data (comma separated)</label>
-            <input type="text" class="form-control" @bind="inputData" placeholder="1, 2, 3, 100, 4, 5" />
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Area A: Rust IQR Engine</h5>
+                <p class="card-text">Outlier detection using Rust + WASM + Float64Array.</p>
+                
+                <div class="mb-3">
+                    <label class="form-label">Input Data (comma separated)</label>
+                    <input type="text" class="form-control" @bind="inputData" placeholder="1, 2, 3, 100, 4, 5" />
+                </div>
+
+                <button class="btn btn-primary" @onclick="AnalyzeData" disabled="@isProcessing">
+                    @if (isProcessing) {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    } else {
+                        <span>Run IQR Analysis</span>
+                    }
+                </button>
+
+                @if (summary != null) {
+                    <div class="mt-4 alert alert-info">
+                        <h6>Results:</h6>
+                        <ul>
+                            <li><strong>Outliers Found:</strong> @summary.Count</li>
+                            <li><strong>Outlier Values:</strong> @string.Join(", ", summary.Outliers)</li>
+                            <li><strong>Bounds:</strong> [@summary.LowerBound.ToString("F2"), @summary.UpperBound.ToString("F2")]</li>
+                        </ul>
+                    </div>
+                }
+            </div>
         </div>
+    </div>
 
-        <button class="btn btn-primary" @onclick="AnalyzeData" disabled="@isProcessing">
-            @if (isProcessing) {
-                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                <span> Processing...</span>
-            } else {
-                <span>Run IQR Analysis</span>
-            }
-        </button>
+    <div class="col-md-6">
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Area B: DuckDB Cleaning Hub</h5>
+                <p class="card-text">Local SQL Imputation (Before vs After).</p>
 
-        @if (summary != null) {
-            <div class="mt-4 alert alert-info">
-                <h6>Results:</h6>
-                <ul>
-                    <li><strong>Outliers Found:</strong> @summary.Count</li>
-                    <li><strong>Outlier Values:</strong> @string.Join(", ", summary.Outliers)</li>
-                    <li><strong>Bounds:</strong> [@summary.LowerBound.ToString("F2"), @summary.UpperBound.ToString("F2")]</li>
-                </ul>
+                <div class="mb-3">
+                    <label class="form-label">Data with Missing Values (null for missing)</label>
+                    <input type="text" class="form-control" @bind="duckdbInput" placeholder="1, null, 3, null, 5" />
+                </div>
+
+                <div class="btn-group mb-3 w-100">
+                    <button class="btn btn-outline-secondary" @onclick='() => Impute("mean")' disabled="@isDuckDBProcessing">Mean Imputation</button>
+                    <button class="btn btn-outline-secondary" @onclick='() => Impute("median")' disabled="@isDuckDBProcessing">Median Imputation</button>
+                </div>
+
+                @if (imputationResults != null) {
+                    <div class="mt-4" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Index</th>
+                                    <th>Original</th>
+                                    <th>Imputed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in imputationResults) {
+                                    <tr>
+                                        <td>@item.Index</td>
+                                        <td>@(item.Original?.ToString("F2") ?? "NULL")</td>
+                                        <td class="@(item.Original == null ? "text-success fw-bold" : "")">@item.Imputed.ToString("F2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
             </div>
-        }
-
-        @if (!string.IsNullOrEmpty(error)) {
-            <div class="mt-4 alert alert-danger">
-                @error
-            </div>
-        }
+        </div>
     </div>
 </div>
 
-<div class="card mt-4">
-    <div class="card-body">
-        <h5 class="card-title">DuckDB Cleaning Hub</h5>
-        <p class="card-text">Local SQL-based Mean/Median Imputation.</p>
-
-        <div class="mb-3">
-            <label class="form-label">Data with Missing Values (null for missing)</label>
-            <input type="text" class="form-control" @bind="duckdbInput" placeholder="1, null, 3, null, 5" />
-        </div>
-
-        <div class="btn-group mb-3">
-            <button class="btn btn-outline-secondary" @onclick='() => Impute("mean")' disabled="@isDuckDBProcessing">Mean Imputation</button>
-            <button class="btn btn-outline-secondary" @onclick='() => Impute("median")' disabled="@isDuckDBProcessing">Median Imputation</button>
-        </div>
-
-        @if (!string.IsNullOrEmpty(duckdbResult)) {
-            <div class="mt-4 alert alert-success">
-                <h6>Cleaned Data:</h6>
-                <pre>@duckdbResult</pre>
-            </div>
-        }
+@if (!string.IsNullOrEmpty(error)) {
+    <div class="mt-4 alert alert-danger">
+        @error
     </div>
-</div>
+}
 
 @code {
     private string inputData = "1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 100";
@@ -77,7 +99,7 @@
 
     // DuckDB State
     private string duckdbInput = "1, null, 3, null, 5, 10, 20";
-    private string? duckdbResult;
+    private List<ImputationItem>? imputationResults;
     private bool isDuckDBProcessing = false;
 
     private async Task AnalyzeData() {
@@ -108,7 +130,7 @@
     private async Task Impute(string method) {
         try {
             isDuckDBProcessing = true;
-            duckdbResult = null;
+            imputationResults = null;
 
             var data = duckdbInput.Split(',')
                 .Select(s => {
@@ -118,11 +140,18 @@
                 })
                 .ToArray();
 
-            duckdbResult = await DuckDB.ImputeMissingValuesAsync(data, method);
+            var json = await DuckDB.ImputeMissingValuesAsync(data, method);
+            imputationResults = JsonSerializer.Deserialize<List<ImputationItem>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         } catch (Exception ex) {
-            duckdbResult = $"Error: {ex.Message}";
+            error = $"DuckDB Error: {ex.Message}";
         } finally {
             isDuckDBProcessing = false;
         }
+    }
+
+    public class ImputationItem {
+        public int Index { get; set; }
+        public double? Original { get; set; }
+        public double Imputed { get; set; }
     }
 }
