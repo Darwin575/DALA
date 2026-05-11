@@ -91,6 +91,9 @@ jobs:
             ]
           }' > deploy_stage/.vercel/output/config.json
 
+          # Inject Version for Cache Busting
+          sed -i "s/{{VERSION}}/${{ github.run_id }}/g" deploy_stage/.vercel/output/static/index.html
+
           # Debug: verify _framework landed in the right place
           echo "=== Static root contents ==="
           ls -la deploy_stage/.vercel/output/static/
