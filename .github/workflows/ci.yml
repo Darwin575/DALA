@@ -18,6 +18,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Verify dotnet version
+        run: dotnet --version
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -58,6 +61,20 @@ jobs:
  
       - name: Publish Blazor App
         run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output -p:BlazorEnableCompression=false
+
+      - name: Inspect dotnet.js format
+        run: |
+          echo "=== First 10 lines of dotnet.js ==="
+          head -10 release_output/wwwroot/_framework/dotnet.js
+          echo ""
+          echo "=== Check for ES module exports ==="
+          grep -c "export" release_output/wwwroot/_framework/dotnet.js || echo "NO EXPORTS FOUND - likely .NET 8 IIFE format"
+          echo ""
+          echo "=== dotnet.js file size ==="
+          ls -lh release_output/wwwroot/_framework/dotnet.js
+          echo ""
+          echo "=== All dotnet* files ==="
+          ls -lh release_output/wwwroot/_framework/dotnet*
  
       # 5. Assemble Vercel Prebuilt Output
       # The --prebuilt flag requires a .vercel/output directory with:
