@@ -49,6 +49,7 @@ jobs:
       - name: Clean Environment
         run: |
           rm -rf .vercel release_output deploy_stage
+          rm -rf BlazorHost/wwwroot/_framework
           dotnet clean BlazorHost/BlazorHost.csproj -c Release
 
       # 4. Build & Publish .NET
