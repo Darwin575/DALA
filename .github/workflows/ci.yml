@@ -44,7 +44,9 @@ jobs:
         run: dotnet build BlazorHost/BlazorHost.csproj -c Release
 
       - name: Clean Stale Artifacts
-        run: rm -rf release_output deploy_stage
+        run: |
+          dotnet clean BlazorHost/BlazorHost.csproj -c Release
+          rm -rf release_output deploy_stage
 
       - name: Publish Blazor App
         run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output -p:BlazorEnableCompression=false
