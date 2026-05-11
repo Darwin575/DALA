@@ -67,8 +67,10 @@ jobs:
         run: |
           mkdir -p deploy_stage/.vercel/output/static
 
-          # Inject build ID into index.html for cache busting (using # delimiter to avoid regex issues)
-          sed -i "s#\${{ github.run_id }}#${{ github.run_id }}#g" release_output/wwwroot/index.html
+          # Inject build ID into index.html for cache busting with proper escaping
+          RUN_ID=${{ github.run_id }}
+          RUN_ID_ESCAPED=$(printf '%s\n' "$RUN_ID" | sed -e 's/[\/&]/\\&/g')
+          sed -i "s/\${{ github.run_id }}/$RUN_ID_ESCAPED/g" release_output/wwwroot/index.html
 
           # Copy published wwwroot preserving all attributes and hidden files
           cp -a release_output/wwwroot/. deploy_stage/.vercel/output/static/
