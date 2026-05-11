@@ -56,7 +56,7 @@ jobs:
           dotnet clean BlazorHost/BlazorHost.csproj -c Release
           dotnet nuget locals all --clear
 
-      # 4. Publish .NET (no separate build step — publish does it all)
+      # 4. Publish .NET
       - name: Publish Blazor App
         run: |
           dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output \
@@ -68,15 +68,23 @@ jobs:
         run: |
           echo "=== release_output root ==="
           ls -la release_output/
-
           echo "=== wwwroot ==="
           ls -la release_output/wwwroot/
-
           echo "=== _framework (no .gz/.br) ==="
           find release_output/wwwroot/_framework \
             ! -name "*.gz" ! -name "*.br" | sort
 
-      # 5. Assemble Vercel Prebuilt Output
+      # 4.6 Verify blazor entry file
+      - name: Verify blazor entry file
+        run: |
+          echo "=== blazor.webassembly.js must exist unfingerpinted ==="
+          ls -lh release_output/wwwroot/_framework/blazor.webassembly.js || echo "MISSING - only fingerprinted version exists"
+          echo "=== all blazor.* files ==="
+          ls release_output/wwwroot/_framework/blazor.*
+      
+      
+
+      # 5.5 Assemble Vercel Prebuilt Output
       - name: Prepare Vercel Prebuilt Output
         run: |
           mkdir -p deploy_stage/.vercel/output/static
