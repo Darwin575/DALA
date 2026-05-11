@@ -7,3 +7,4 @@ node_modules/
 *.user
 .agent/skills/
 setup/
+*.sln

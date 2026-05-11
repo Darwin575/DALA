@@ -2,10 +2,12 @@
 
 Write-Host "--- Step 0: Cleaning up ports ---" -ForegroundColor Yellow
 $port = 5265
-$process = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-if ($process) {
-    Write-Host "Port $port is in use. Killing process $($process.OwningProcess)..." -ForegroundColor Magenta
-    Stop-Process -Id $process.OwningProcess -Force -ErrorAction SilentlyContinue
+$processes = netstat -ano 2>$null | Select-String ":$port " | ForEach-Object { $_.Split()[-1] }
+if ($processes) {
+    foreach ($pid in $processes) {
+        Write-Host "Port $port is in use. Killing process $pid..." -ForegroundColor Magenta
+        taskkill /PID $pid /F /T 2>$null
+    }
     Start-Sleep -Seconds 1 # Give the OS a second to release the socket
 }
 
