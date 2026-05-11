@@ -46,12 +46,23 @@ jobs:
       - name: Publish Blazor App
         run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output
 
+      # 5. Assemble Vercel Prebuilt Output
+      # The --prebuilt flag requires a .vercel/output directory with:
+      #   config.json  → routing/version metadata
+      #   static/      → all serveable files
+      - name: Prepare Vercel Prebuilt Output
+        run: |
+          mkdir -p deploy_stage/.vercel/output/static
+          cp -r release_output/wwwroot/* deploy_stage/.vercel/output/static/
+          echo '{"version": 3}' > deploy_stage/.vercel/output/config.json
+          ls -la deploy_stage/.vercel/output/static/
+
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v20
         with:
           zeit-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-token: ${{ secrets.VERCEL_TOKEN }} 
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.ORG_ID }}
           vercel-project-id: ${{ secrets.PROJECT_ID }}
-          vercel-args: '--prod --prebuilt' 
-          working-directory: ./release_output/wwwroot
+          vercel-args: '--prod --prebuilt'
+          working-directory: ./deploy_stage
