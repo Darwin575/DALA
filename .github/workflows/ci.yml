@@ -45,18 +45,19 @@ jobs:
           npm install
           npm run copy-duckdb
 
+      # 3.8 Clean Stale Artifacts
+      - name: Clean Environment
+        run: |
+          rm -rf .vercel release_output deploy_stage
+          dotnet clean BlazorHost/BlazorHost.csproj -c Release
+
       # 4. Build & Publish .NET
       - name: Build Blazor Host
         run: dotnet build BlazorHost/BlazorHost.csproj -c Release
-
-      - name: Clean Stale Artifacts
-        run: |
-          dotnet clean BlazorHost/BlazorHost.csproj -c Release
-          rm -rf release_output deploy_stage
-
+ 
       - name: Publish Blazor App
         run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output -p:BlazorEnableCompression=false
-
+ 
       # 5. Assemble Vercel Prebuilt Output
       # The --prebuilt flag requires a .vercel/output directory with:
       #   config.json  → routing/version metadata
@@ -108,5 +109,5 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.ORG_ID }}
           vercel-project-id: ${{ secrets.PROJECT_ID }}
-          vercel-args: '--prod --prebuilt --force'
+          vercel-args: '--prod --prebuilt --force -e VERCEL_FORCE_NO_CACHE=1'
           working-directory: ./deploy_stage
