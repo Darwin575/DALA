@@ -62,6 +62,37 @@ jobs:
       - name: Publish Blazor App
         run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output -p:BlazorEnableCompression=false
 
+      - name: Check publish output exists
+        run: |
+          echo "=== Checking release_output directory ==="
+          if [ -d release_output ]; then
+            echo "✓ release_output exists"
+            ls -la release_output/ | head -20
+          else
+            echo "✗ release_output NOT FOUND"
+            exit 1
+          fi
+          
+          echo ""
+          echo "=== Checking wwwroot ==="
+          if [ -d release_output/wwwroot ]; then
+            echo "✓ wwwroot exists"
+            ls -la release_output/wwwroot/ | head -20
+          else
+            echo "✗ wwwroot NOT FOUND"
+            exit 1
+          fi
+          
+          echo ""
+          echo "=== Checking _framework ==="
+          if [ -d release_output/wwwroot/_framework ]; then
+            echo "✓ _framework exists"
+            ls -la release_output/wwwroot/_framework/ | head -20
+          else
+            echo "✗ _framework NOT FOUND"
+            exit 1
+          fi
+
       - name: Inspect dotnet.js format
         run: |
           echo "=== First 10 lines of dotnet.js ==="
