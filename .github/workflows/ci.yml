@@ -78,6 +78,7 @@ jobs:
             "cleanUrls": true,
             "trailingSlash": false,
             "routes": [
+              { "src": "/_framework/blazor.boot.json", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
               { "src": "/_framework/blazor.webassembly.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
               { "src": "/_framework/(.*)\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
               { "src": "/_framework/(.*)\\.mjs", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
@@ -91,9 +92,6 @@ jobs:
               { "src": "/(.*)", "dest": "/index.html", "status": 200 }
             ]
           }' > deploy_stage/.vercel/output/config.json
-
-          # Inject Version for Cache Busting
-          sed -i "s/{{VERSION}}/${{ github.run_id }}/g" deploy_stage/.vercel/output/static/index.html
 
           # Debug: verify _framework landed in the right place
           echo "=== Static root contents ==="

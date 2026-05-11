@@ -3,6 +3,12 @@
   "trailingSlash": false,
   "headers": [
     {
+      "source": "/_framework/blazor.boot.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
       "source": "/_framework/blazor.webassembly.js",
       "headers": [
         { "key": "Content-Type", "value": "application/javascript" },
