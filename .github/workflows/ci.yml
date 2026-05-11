@@ -43,8 +43,11 @@ jobs:
       - name: Build Blazor Host
         run: dotnet build BlazorHost/BlazorHost.csproj -c Release
 
+      - name: Clean Stale Artifacts
+        run: rm -rf release_output deploy_stage
+
       - name: Publish Blazor App
-        run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output
+        run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output -p:BlazorEnableCompression=false
 
       # 5. Assemble Vercel Prebuilt Output
       # The --prebuilt flag requires a .vercel/output directory with:
@@ -82,5 +85,5 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.ORG_ID }}
           vercel-project-id: ${{ secrets.PROJECT_ID }}
-          vercel-args: '--prod --prebuilt'
+          vercel-args: '--prod --prebuilt --force'
           working-directory: ./deploy_stage
