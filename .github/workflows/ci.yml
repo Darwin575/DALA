@@ -1,4 +1,4 @@
-name: DALA CI
+name: DALA CI/CD
 
 on:
   push:
@@ -7,24 +7,41 @@ on:
     branches: [ main ]
 
 jobs:
-  build-rust:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: Build Rust
-        run: cd rust_engine && wasm-pack build --target web
 
-  build-dotnet:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup .NET
+      # 1. Setup Environment
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Build Blazor
-        run: cd BlazorHost && dotnet build
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      # 2. Build Rust WASM
+      - name: Build Rust Engine
+        run: |
+          cd rust_engine
+          wasm-pack build --target web --release
+
+      # 3. Move WASM to Blazor (The Bridge)
+      - name: Prepare WASM Assets
+        run: |
+          mkdir -p BlazorHost/wwwroot/js/rust_engine
+          cp rust_engine/pkg/rust_engine_bg.wasm BlazorHost/wwwroot/js/rust_engine/
+          cp rust_engine/pkg/rust_engine.js BlazorHost/wwwroot/js/rust_engine/
+
+      # 4. Build & Publish .NET
+      - name: Build Blazor Host
+        run: dotnet build BlazorHost/BlazorHost.csproj -c Release
+
+      - name: Publish Blazor App
+        run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output
