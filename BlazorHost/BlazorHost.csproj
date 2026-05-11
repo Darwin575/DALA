@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
-    <BlazorCacheBootResources>true</BlazorCacheBootResources>
+    <BlazorCacheBootResources>false</BlazorCacheBootResources>
     <BlazorWebAssemblyLoadAllAssembliesAsStream>true</BlazorWebAssemblyLoadAllAssembliesAsStream>
-    <BlazorFingerprintBlazorJs>false</BlazorFingerprintBlazorJs>
+    <BlazorFingerprintBlazorJs>true</BlazorFingerprintBlazorJs>
   </PropertyGroup>
 
   <ItemGroup>

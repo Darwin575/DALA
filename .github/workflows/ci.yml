@@ -41,7 +41,7 @@ jobs:
           mkdir -p BlazorHost/wwwroot/js/rust_engine
           cp rust_engine/pkg/rust_engine_bg.wasm BlazorHost/wwwroot/js/rust_engine/
           cp rust_engine/pkg/rust_engine.js BlazorHost/wwwroot/js/rust_engine/
- 
+
       # 3.5 Setup DuckDB WASM Assets
       - name: Setup DuckDB Assets
         run: |
@@ -54,68 +54,34 @@ jobs:
           rm -rf .vercel release_output deploy_stage
           rm -rf BlazorHost/wwwroot/_framework
           dotnet clean BlazorHost/BlazorHost.csproj -c Release
+          dotnet nuget locals all --clear
 
-      # 4. Build & Publish .NET
-      - name: Build Blazor Host
-        run: dotnet build BlazorHost/BlazorHost.csproj -c Release
- 
+      # 4. Publish .NET (no separate build step — publish does it all)
       - name: Publish Blazor App
-        run: dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output -p:BlazorEnableCompression=false
-
-      - name: Check publish output exists
         run: |
-          echo "=== Checking release_output directory ==="
-          if [ -d release_output ]; then
-            echo "✓ release_output exists"
-            ls -la release_output/ | head -20
-          else
-            echo "✗ release_output NOT FOUND"
-            exit 1
-          fi
-          
-          echo ""
-          echo "=== Checking wwwroot ==="
-          if [ -d release_output/wwwroot ]; then
-            echo "✓ wwwroot exists"
-            ls -la release_output/wwwroot/ | head -20
-          else
-            echo "✗ wwwroot NOT FOUND"
-            exit 1
-          fi
-          
-          echo ""
-          echo "=== Checking _framework ==="
-          if [ -d release_output/wwwroot/_framework ]; then
-            echo "✓ _framework exists"
-            ls -la release_output/wwwroot/_framework/ | head -20
-          else
-            echo "✗ _framework NOT FOUND"
-            exit 1
-          fi
+          dotnet publish BlazorHost/BlazorHost.csproj -c Release -o release_output \
+            -p:BlazorEnableCompression=false \
+            -p:CompressionEnabled=false
 
-      - name: Inspect dotnet.js format
+      # 4.5 Verify publish output
+      - name: Check publish output
         run: |
-          echo "=== First 10 lines of dotnet.js ==="
-          head -10 release_output/wwwroot/_framework/dotnet.js
-          echo ""
-          echo "=== Check for ES module exports ==="
-          grep -c "export" release_output/wwwroot/_framework/dotnet.js || echo "NO EXPORTS FOUND - likely .NET 8 IIFE format"
-          echo ""
-          echo "=== dotnet.js file size ==="
-          ls -lh release_output/wwwroot/_framework/dotnet.js
-          echo ""
-          echo "=== All dotnet* files ==="
-          ls -lh release_output/wwwroot/_framework/dotnet*
- 
+          echo "=== release_output root ==="
+          ls -la release_output/
+
+          echo "=== wwwroot ==="
+          ls -la release_output/wwwroot/
+
+          echo "=== _framework (no .gz/.br) ==="
+          find release_output/wwwroot/_framework \
+            ! -name "*.gz" ! -name "*.br" | sort
+
       # 5. Assemble Vercel Prebuilt Output
-      # The --prebuilt flag requires a .vercel/output directory with:
-      #   config.json  → routing/version metadata
-      #   static/      → all serveable files
       - name: Prepare Vercel Prebuilt Output
         run: |
           mkdir -p deploy_stage/.vercel/output/static
 
-          # Inject build ID into index.html for cache busting using simple placeholder
+          # Inject build ID into index.html for cache busting
           sed -i "s/BUILD_ID_PLACEHOLDER/${{ github.run_id }}/g" release_output/wwwroot/index.html
 
           # Copy published wwwroot preserving all attributes and hidden files
@@ -124,37 +90,36 @@ jobs:
           # Prevent underscore-prefixed folders (_framework) from being ignored
           touch deploy_stage/.vercel/output/static/.nojekyll
 
-          # Write Vercel Build Output API config with SPA routing and explicit MIME types
-          echo '{
+          # Write Vercel Build Output API config
+          cat > deploy_stage/.vercel/output/config.json << 'EOF'
+          {
             "version": 3,
             "cleanUrls": true,
             "trailingSlash": false,
             "routes": [
               { "src": "/_framework/blazor.boot.json", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
-              { "src": "/_framework/blazor.webassembly.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
+              { "src": "/_framework/blazor.webassembly(.*)\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
+              { "src": "/_framework/(.*)\\.wasm", "headers": { "Content-Type": "application/wasm", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
               { "src": "/_framework/(.*)\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
               { "src": "/_framework/(.*)\\.mjs", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
+              { "src": "/_framework/(.*)\\.dat", "headers": { "Content-Type": "application/octet-stream", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
               { "src": "/js/(.*)\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
               { "src": "/js/(.*)\\.mjs", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
               { "src": "/(.*)\\.wasm", "headers": { "Content-Type": "application/wasm", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
-              { "src": "/_framework/(.*)", "dest": "/_framework/$1" },
-              { "src": "/js/(.*)", "dest": "/js/$1" },
-              { "src": "/css/(.*)", "dest": "/css/$1" },
               { "handle": "filesystem" },
               { "src": "/(.*)", "dest": "/index.html", "status": 200 }
             ]
-          }' > deploy_stage/.vercel/output/config.json
-
-          # Debug: verify _framework landed in the right place
-          echo "=== Static root contents ==="
-          ls -la deploy_stage/.vercel/output/static/
-          echo "=== _framework recursive listing ==="
-          ls -R deploy_stage/.vercel/output/static/_framework/ || echo "_framework NOT FOUND!"
-          echo "=== config.json ==="
-          cat deploy_stage/.vercel/output/config.json
+          }
+          EOF
 
           # Copy vercel.json into deploy_stage for the CLI to pick up
           cp vercel.json deploy_stage/vercel.json
+
+          # Debug output
+          echo "=== Static root ==="
+          ls -la deploy_stage/.vercel/output/static/
+          echo "=== _framework ==="
+          ls -la deploy_stage/.vercel/output/static/_framework/ || echo "_framework NOT FOUND"
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v20
