@@ -38,6 +38,12 @@ jobs:
           mkdir -p BlazorHost/wwwroot/js/rust_engine
           cp rust_engine/pkg/rust_engine_bg.wasm BlazorHost/wwwroot/js/rust_engine/
           cp rust_engine/pkg/rust_engine.js BlazorHost/wwwroot/js/rust_engine/
+ 
+      # 3.5 Setup DuckDB WASM Assets
+      - name: Setup DuckDB Assets
+        run: |
+          npm install
+          npm run copy-duckdb
 
       # 4. Build & Publish .NET
       - name: Build Blazor Host

@@ -11,10 +11,14 @@ copy-wasm:
 	powershell -Command "if (!(Test-Path $(WASM_OUT))) { New-Item -ItemType Directory -Path $(WASM_OUT) -Force }"
 	powershell -Command "Copy-Item $(RUST_DIR)/pkg/* $(WASM_OUT) -Recurse -Force"
 
+copy-duckdb:
+	npm install
+	npm run copy-duckdb
+
 build-blazor:
 	cd $(BLAZOR_DIR) && dotnet build
 
-build: build-rust copy-wasm build-blazor
+build: build-rust copy-wasm copy-duckdb build-blazor
 
 run:
 	cd $(BLAZOR_DIR) && dotnet watch

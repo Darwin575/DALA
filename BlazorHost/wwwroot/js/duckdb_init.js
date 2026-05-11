@@ -1,54 +1,81 @@
 /**
- * DALA DuckDB Integration
+ * DALA DuckDB Integration (Real Wasm Version)
  */
+import * as duckdb from './duckdb/duckdb-browser.mjs';
+
+const MANUAL_BUNDLES = {
+    mvp: {
+        mainModule: 'js/duckdb/duckdb-mvp.wasm',
+        mainWorker: 'js/duckdb/duckdb-browser-mvp.worker.js',
+    },
+    eh: {
+        mainModule: 'js/duckdb/duckdb-eh.wasm',
+        mainWorker: 'js/duckdb/duckdb-browser-eh.worker.js',
+    },
+};
+
+let db = null;
 
 export async function initDuckDB() {
-    console.log("Initializing DuckDB-Wasm...");
-    // Real implementation would involve db = await duckdb.create()
-    return { status: "ready" };
+    if (db) return { status: "ready" };
+    
+    try {
+        console.log("Initializing Real DuckDB-Wasm...");
+        const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
+        const worker = new Worker(bundle.mainWorker);
+        const logger = new duckdb.ConsoleLogger();
+        db = new duckdb.AsyncDuckDB(logger, worker);
+        await db.instantiate(bundle.mainModule);
+        console.log("DuckDB-Wasm instantiated successfully.");
+        return { status: "ready" };
+    } catch (err) {
+        console.error("DuckDB initialization failed:", err);
+        throw err;
+    }
 }
 
-/**
- * Imputes missing values using SQL: COALESCE(val, AVG(val) OVER())
- * @param {Array<number|null>} data 
- * @param {string} method 'mean' | 'median'
- */
+export async function runTestQuery() {
+    await initDuckDB();
+    const conn = await db.connect();
+    try {
+        const result = await conn.query(`SELECT 'Hello from DuckDB' as greeting`);
+        const rows = result.toArray();
+        return rows[0].greeting;
+    } finally {
+        await conn.close();
+    }
+}
+
 export async function imputeMissingValues(data, method) {
-    console.log(`DuckDB SQL execution: Imputing via ${method}`);
-
-    // In a real DuckDB environment, we would do:
-    // const conn = await db.connect();
-    // await conn.query(`CREATE TABLE dataset (val DOUBLE)`);
-    // await conn.insert('dataset', data);
+    await initDuckDB();
+    const conn = await db.connect();
     
-    // The specific SQL requirement:
-    let sql = "";
-    if (method === 'mean') {
-        sql = "SELECT val as original, COALESCE(val, AVG(val) OVER()) as imputed FROM dataset";
-    } else {
-        // For median, DuckDB uses median(val) OVER()
-        sql = "SELECT val as original, COALESCE(val, median(val) OVER()) as imputed FROM dataset";
+    try {
+        await conn.query(`CREATE TABLE dataset (val DOUBLE)`);
+        
+        // Insert data using a simpler approach for the demo
+        // For larger datasets, we would use conn.insert
+        for (const val of data) {
+            await conn.query(`INSERT INTO dataset VALUES (${val === null ? 'NULL' : val})`);
+        }
+        
+        let sql = "";
+        if (method === 'mean') {
+            sql = "SELECT val as original, COALESCE(val, AVG(val) OVER()) as imputed FROM dataset";
+        } else {
+            sql = "SELECT val as original, COALESCE(val, median(val) OVER()) as imputed FROM dataset";
+        }
+        
+        const result = await conn.query(sql);
+        const rows = result.toArray().map((r, i) => ({
+            index: i,
+            original: r.original,
+            imputed: r.imputed
+        }));
+        
+        return JSON.stringify(rows);
+    } finally {
+        await conn.query(`DROP TABLE dataset`);
+        await conn.close();
     }
-    
-    console.log(`Executing SQL: ${sql}`);
-
-    // Simulated result generation to match the SQL logic
-    const values = data.filter(v => v !== null);
-    let fillValue = 0;
-
-    if (method === 'mean') {
-        fillValue = values.reduce((a, b) => a + b, 0) / values.length;
-    } else {
-        const sorted = [...values].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        fillValue = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-    }
-
-    const results = data.map((v, i) => ({
-        index: i,
-        original: v,
-        imputed: v === null ? fillValue : v
-    }));
-
-    return JSON.stringify(results);
 }

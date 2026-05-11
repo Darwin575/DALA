@@ -27,6 +27,13 @@ public class DuckDBInterop : IAsyncDisposable
         return await _module.InvokeAsync<string>("imputeMissingValues", data, method);
     }
 
+    public async Task<string> RunTestQueryAsync()
+    {
+        await EnsureModuleLoaded();
+        if (_module == null) return "Error: Module not loaded";
+        return await _module.InvokeAsync<string>("runTestQuery");
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_module != null)

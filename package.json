@@ -1,0 +1,12 @@
+{
+  "name": "dala-duckdb-manager",
+  "version": "1.0.0",
+  "description": "Manages DuckDB-Wasm assets for DALA",
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.28.1",
+    "shx": "^0.3.4"
+  },
+  "scripts": {
+    "copy-duckdb": "shx mkdir -p BlazorHost/wwwroot/js/duckdb && shx cp node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm node_modules/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs BlazorHost/wwwroot/js/duckdb/"
+  }
+}

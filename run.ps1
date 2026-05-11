@@ -27,6 +27,10 @@ if (!(Test-Path $wasmOut)) {
 Copy-Item "rust_engine/pkg/rust_engine_bg.wasm" "$wasmOut/" -Force
 Copy-Item "rust_engine/pkg/rust_engine.js" "$wasmOut/" -Force
 
+Write-Host "--- Step 2.5: Preparing DuckDB Assets ---" -ForegroundColor Cyan
+npm install
+npm run copy-duckdb
+
 Write-Host "--- Step 3: Launching Blazor Host ---" -ForegroundColor Cyan
 Set-Location BlazorHost
 dotnet watch
