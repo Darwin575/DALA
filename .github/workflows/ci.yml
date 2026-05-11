@@ -53,9 +53,21 @@ jobs:
       - name: Prepare Vercel Prebuilt Output
         run: |
           mkdir -p deploy_stage/.vercel/output/static
-          cp -r release_output/wwwroot/* deploy_stage/.vercel/output/static/
-          echo '{"version": 3}' > deploy_stage/.vercel/output/config.json
+
+          # Copy published wwwroot preserving all attributes and hidden files
+          cp -a release_output/wwwroot/. deploy_stage/.vercel/output/static/
+
+          # Prevent underscore-prefixed folders (_framework) from being ignored
+          touch deploy_stage/.vercel/output/static/.nojekyll
+
+          # Write Vercel Build Output API config with SPA routing
+          echo '{"version":3,"routes":[{"handle":"filesystem"},{"src":"/(.*)", "dest":"/index.html","status":200}]}' > deploy_stage/.vercel/output/config.json
+
+          # Debug: verify _framework landed in the right place
+          echo "=== Static root contents ==="
           ls -la deploy_stage/.vercel/output/static/
+          echo "=== _framework contents ==="
+          ls -la deploy_stage/.vercel/output/static/_framework/ || echo "_framework NOT FOUND!"
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v20
