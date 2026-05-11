@@ -1,4 +1,6 @@
 using Microsoft.JSInterop;
+using BlazorHost.Pages;
+using System.Text.Json.Serialization;
 
 namespace BlazorHost.Services;
 
@@ -32,6 +34,41 @@ public class DuckDBInterop : IAsyncDisposable
         await EnsureModuleLoaded();
         if (_module == null) return "Error: Module not loaded";
         return await _module.InvokeAsync<string>("runTestQuery");
+    }
+
+    public async Task IngestLargeCSVAsync(IJSObjectReference file, string tableName, DotNetObjectReference<Diagnostic> progressRef)
+    {
+        await EnsureModuleLoaded();
+        if (_module == null) return;
+        await _module.InvokeVoidAsync("ingestLargeCSV", file, tableName, progressRef);
+    }
+
+    public async Task IngestFromInputAsync(string elementId, string tableName, DotNetObjectReference<Diagnostic> progressRef)
+    {
+        await EnsureModuleLoaded();
+        if (_module == null) return;
+        await _module.InvokeVoidAsync("ingestFromInput", elementId, tableName, progressRef);
+    }
+
+    public async Task ClearAllStorageAsync()
+    {
+        await EnsureModuleLoaded();
+        if (_module == null) return;
+        await _module.InvokeVoidAsync("clearAllStorage");
+    }
+
+    public async Task GetInventoryAsync(DotNetObjectReference<Diagnostic> progressRef)
+    {
+        await EnsureModuleLoaded();
+        if (_module == null) return;
+        await _module.InvokeVoidAsync("getInventory", progressRef);
+    }
+
+    public async Task<string> GetTableProfileAsync(string tableName)
+    {
+        await EnsureModuleLoaded();
+        if (_module == null) return "{}";
+        return await _module.InvokeAsync<string>("getTableProfile", tableName);
     }
 
     public async ValueTask DisposeAsync()

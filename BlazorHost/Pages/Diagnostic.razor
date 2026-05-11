@@ -1,5 +1,6 @@
 @page "/diagnostic"
 @using BlazorHost.Services
+@using System.Text.Json.Serialization
 @inject RustInterop RustEngine
 @inject DuckDBInterop DuckDB
 @inject IJSRuntime JSRuntime
@@ -81,12 +82,17 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-primary text-white border-0 py-3 d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">3. DuckDB-Wasm Engine</h5>
-                    <span class="badge @(duckdbStatus == "Ready" ? "bg-success" : "bg-warning text-dark")">@duckdbStatus</span>
+                    <div class="d-flex gap-2">
+                        @if (isPersistent) {
+                            <span class="badge bg-info text-dark"><i class="bi bi-shield-check me-1"></i>Persistent (OPFS)</span>
+                        }
+                        <span class="badge @(duckdbStatus == "Ready" ? "bg-success" : "bg-warning text-dark")">@duckdbStatus</span>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-lg-8">
-                            <p class="text-muted small">Initializing a real DuckDB-Wasm instance in a separate thread. This tests the loading of large WASM assets (approx. 30MB+) and the SQL execution bridge.</p>
+                            <p class="text-muted small">Initializing a real DuckDB-Wasm instance with <strong>OPFS (Origin Private File System)</strong>. This allows the database to persist between refreshes. Data is stored in <code>dala_main.db</code>.</p>
                             
                             <div class="d-flex gap-2">
                                 <button class="btn btn-primary" @onclick="TestDuckDB" disabled="@isDuckDBLoading">
@@ -98,8 +104,8 @@
                                         <span>Run SQL Test</span>
                                     }
                                 </button>
-                                <button class="btn btn-outline-secondary" @onclick="ResetDuckDB" disabled="@isDuckDBLoading">
-                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+                                <button class="btn btn-outline-danger" @onclick="ClearStorage" disabled="@isDuckDBLoading">
+                                    <i class="bi bi-trash3 me-1"></i> Clear Storage
                                 </button>
                             </div>
                         </div>
@@ -117,6 +123,135 @@
                             }
                         </div>
                     </div>
+
+                    <div class="mt-4 pt-3 border-top">
+                        <h6 class="mb-3"><i class="bi bi-file-earmark-arrow-up me-2"></i>Large File Ingestion (CSV -> Parquet)</h6>
+                        <div class="row g-3 align-items-center">
+                            <div class="col-auto">
+                                <input type="file" id="csvFileInput" class="form-control form-control-sm" accept=".csv" />
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-success btn-sm px-3" @onclick="StartIngestion" disabled="@isIngesting">
+                                    @if (isIngesting) {
+                                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                        <span>Ingesting...</span>
+                                    } else {
+                                        <i class="bi bi-cloud-upload me-1"></i>
+                                        <span>Start Ingest</span>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (isIngesting || ingestProgress > 0) {
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between mb-1 small">
+                                    <span class="text-muted">Compaction Progress</span>
+                                    <span class="fw-bold">@ingestProgress%</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                         role="progressbar" 
+                                         style="width: @(ingestProgress)%;" 
+                                         aria-valuenow="@ingestProgress" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                    </div>
+                                </div>
+                                @if (ingestProgress == 100) {
+                                    <div class="mt-2 text-success small">
+                                        <i class="bi bi-check2-all me-1"></i> Ingestion complete! Data is now persisted in OPFS.
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (existingTables.Any()) {
+                            <div class="mt-4">
+                                <div class="small fw-bold text-muted mb-2 text-uppercase">Existing Tables (OPFS Inventory)</div>
+                                <div class="list-group list-group-flush border rounded-3 overflow-hidden shadow-sm">
+                                    @foreach (var table in existingTables) {
+                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(selectedTable == table ? "list-group-item-primary" : "")" 
+                                             @onclick="() => SelectTable(table)" style="cursor: pointer;">
+                                            <div>
+                                                <i class="bi bi-table me-2"></i>
+                                                <span class="font-monospace">@table</span>
+                                            </div>
+                                            @if (selectedTable == table) {
+                                                <span class="badge bg-primary rounded-pill">Active</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 mt-4 animate-fade-in" style="animation-delay: 0.4s;">
+            <div class="card border-0 shadow-sm overflow-hidden">
+                <div class="card-header bg-dark text-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0"><i class="bi bi-bar-chart-steps me-2"></i>Dataset Insights (Profiler)</h5>
+                    @if (activeProfile != null) {
+                        <span class="badge bg-secondary">@activeProfile.RowCount Rows | @activeProfile.ColumnCount Columns</span>
+                    }
+                </div>
+                <div class="card-body">
+                    @if (activeProfile == null) {
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-clipboard2-data fs-1 opacity-25"></i>
+                            <p class="mt-3">No active dataset selected. Load or ingest a file to see insights.</p>
+                        </div>
+                    } else {
+                        <div class="table-responsive" style="max-height: 600px; overflow-y: auto; overflow-x: auto;">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Column Name</th>
+                                        <th>Data Type</th>
+                                        <th>Missing Values (Nulls)</th>
+                                        <th>Quality</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var col in activeProfile.Columns) {
+                                        var stat = activeProfile.Summary?.FirstOrDefault(s => s.ColumnName == col.Name);
+                                        <tr>
+                                                <td class="font-monospace fw-bold text-nowrap">@col.Name</td>
+                                                <td><span class="badge bg-light text-dark border">@col.Type</span></td>
+                                                <td>
+                                                    @if (Convert.ToInt64(col.NullCount?.ToString() ?? "0") > 0) {
+                                                        <span class="text-danger fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i>@col.NullCount</span>
+                                                    } else {
+                                                        <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>0</span>
+                                                    }
+                                                </td>
+                                            <td>
+                                                <div class="d-flex flex-column gap-1 small">
+                                                    @if (stat != null) {
+                                                        <div class="d-flex justify-content-between border-bottom pb-1">
+                                                            <span class="text-muted">Min/Max:</span>
+                                                            <span class="font-monospace fw-semibold">@stat.Min / @stat.Max</span>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between border-bottom pb-1">
+                                                            <span class="text-muted">Unique:</span>
+                                                            <span class="badge bg-secondary">~@stat.ApproxUnique</span>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between">
+                                                            <span class="text-muted">Avg:</span>
+                                                            <span class="font-monospace">@stat.Avg</span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -148,6 +283,44 @@
     private string duckdbStatus = "Standby";
     private string? duckdbResult;
     private bool isDuckDBLoading = false;
+    private bool isPersistent = false;
+    private List<string> existingTables = new();
+    private string? selectedTable;
+    private TableProfile? activeProfile;
+    private bool showAdvancedStats = false;
+    
+    private bool isIngesting = false;
+    private int ingestProgress = 0;
+
+    public class TableProfile {
+        public object RowCount { get; set; } = 0;
+        public int ColumnCount { get; set; }
+        public List<ColumnProfile> Columns { get; set; } = new();
+        public List<ColumnSummary> Summary { get; set; } = new();
+    }
+
+    public class ColumnSummary {
+        [JsonPropertyName("column_name")]
+        public string ColumnName { get; set; } = "";
+        [JsonPropertyName("column_type")]
+        public string ColumnType { get; set; } = "";
+        [JsonPropertyName("min")]
+        public string Min { get; set; } = "";
+        [JsonPropertyName("max")]
+        public string Max { get; set; } = "";
+        [JsonPropertyName("avg")]
+        public string Avg { get; set; } = "";
+        [JsonPropertyName("approx_unique")]
+        public string ApproxUnique { get; set; } = "";
+        [JsonPropertyName("null_count")]
+        public object NullCount { get; set; } = 0;
+    }
+
+    public class ColumnProfile {
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public object NullCount { get; set; } = 0;
+    }
 
     private async Task TestRustHello() {
         try {
@@ -184,6 +357,61 @@
         }
     }
 
+    protected override async Task OnInitializedAsync() {
+        try {
+            // Wait for engine to be available (simple delay to avoid lock race)
+            await Task.Delay(500);
+            
+            // Request inventory on boot
+            using var objRef = DotNetObjectReference.Create(this);
+            await DuckDB.GetInventoryAsync(objRef);
+            
+            // Restore session
+            var storedTable = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "dala_active_table");
+            
+            // Sanitize: If the stored table name is the old dynamic format, purge it
+            if (!string.IsNullOrEmpty(storedTable) && storedTable.StartsWith("dataset_") && storedTable != "dataset_main") {
+                Console.WriteLine($"Purging obsolete dataset ID: {storedTable}");
+                await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "dala_active_table");
+                storedTable = null;
+            }
+
+            selectedTable = storedTable;
+            if (!string.IsNullOrEmpty(selectedTable)) {
+                await ProfileTable(selectedTable);
+            }
+        } catch { }
+    }
+
+    private async Task ProfileTable(string tableName) {
+        try {
+            var json = await DuckDB.GetTableProfileAsync(tableName);
+            
+            // Check for pending import (e.g. after a version bump)
+            using (var doc = System.Text.Json.JsonDocument.Parse(json)) {
+                if (doc.RootElement.TryGetProperty("status", out var status) && status.GetString() == "pending_import") {
+                    duckdbResult = "Database reset due to lock. Please re-ingest your dataset.";
+                    activeProfile = null;
+                    StateHasChanged();
+                    return;
+                }
+            }
+
+            activeProfile = System.Text.Json.JsonSerializer.Deserialize<TableProfile>(json, new System.Text.Json.JsonSerializerOptions {
+                PropertyNameCaseInsensitive = true
+            });
+            StateHasChanged();
+        } catch (Exception ex) {
+            Console.WriteLine($"Profiling failed: {ex.Message}");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnInventoryUpdated(string[] tables) {
+        existingTables = tables.ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
     private async Task TestDuckDB() {
         try {
             isDuckDBLoading = true;
@@ -192,6 +420,7 @@
             
             duckdbResult = await DuckDB.RunTestQueryAsync();
             duckdbStatus = "Ready";
+            isPersistent = true; // Since we moved to OPFS in init
         } catch (Exception ex) {
             duckdbStatus = "Error";
             duckdbResult = $"Error: {ex.Message}";
@@ -200,8 +429,54 @@
         }
     }
 
+    private async Task ClearStorage() {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure? This will delete the entire local database file (dala_main.db), clear session history, and reload the page.")) {
+            await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "dala_active_table");
+            await DuckDB.ClearAllStorageAsync();
+        }
+    }
+
+    private async Task SelectTable(string table) {
+        selectedTable = table;
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "dala_active_table", table);
+        await ProfileTable(table);
+    }
+
     private void ResetDuckDB() {
         duckdbStatus = "Standby";
         duckdbResult = null;
+        isPersistent = false;
+    }
+
+    [JSInvokable]
+    public void OnIngestProgress(int progress) {
+        ingestProgress = progress;
+        StateHasChanged();
+    }
+
+    private async Task StartIngestion() {
+        try {
+            isIngesting = true;
+            ingestProgress = 0;
+            activeProfile = null;
+            
+            using var objRef = DotNetObjectReference.Create(this);
+            // Fix ID mismatch: Use a stable table name for the primary dataset
+            string tableName = "dataset_main"; 
+            await DuckDB.IngestFromInputAsync("csvFileInput", tableName, objRef);
+            
+            // Save session
+            selectedTable = tableName;
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "dala_active_table", tableName);
+            
+            // Profiling
+            await ProfileTable(tableName);
+            
+            duckdbResult = $"Successfully ingested CSV into table '{tableName}'. Profiled {activeProfile?.RowCount} rows.";
+        } catch (Exception ex) {
+            duckdbResult = $"Ingestion Error: {ex.Message}";
+        } finally {
+            isIngesting = false;
+        }
     }
 }
