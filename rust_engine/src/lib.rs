@@ -2,6 +2,11 @@ use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use js_sys::Float64Array;
 
+#[wasm_bindgen]
+pub fn say_hello(name: &str) -> String {
+    format!("Hello from Rust, {}!", name)
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct OutlierSummary {
     pub count: usize,

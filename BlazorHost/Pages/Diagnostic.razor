@@ -1,0 +1,136 @@
+@page "/diagnostic"
+@using BlazorHost.Services
+@inject RustInterop RustEngine
+@inject IJSRuntime JSRuntime
+
+<PageTitle>DALA - Diagnostics</PageTitle>
+
+<div class="container mt-5">
+    <div class="d-flex align-items-center mb-4">
+        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+            <i class="bi bi-cpu-fill"></i>
+        </div>
+        <h1 class="mb-0">System Bridge Diagnostics</h1>
+    </div>
+
+    <div class="row g-4">
+        <!-- Rust WASM Section -->
+        <div class="col-md-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-dark text-white border-0 py-3">
+                    <h5 class="card-title mb-0">1. Rust WASM Engine</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Testing the JSInterop bridge to the Rust-compiled WebAssembly module via Web Worker.</p>
+                    
+                    <div class="input-group mb-3">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-person"></i>
+                        </span>
+                        <input type="text" class="form-control bg-light border-start-0" @bind="userName" placeholder="Enter name..." />
+                        <button class="btn btn-primary px-4" @onclick="TestRustHello" disabled="@isRustLoading">
+                            @if (isRustLoading) {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Wait...</span>
+                            } else {
+                                <span>Test Rust</span>
+                            }
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(rustMessage)) {
+                        <div class="alert @(rustMessage.StartsWith("Error") ? "alert-danger" : "alert-success") border-0 shadow-sm animate-fade-in">
+                            <div class="d-flex">
+                                <i class="bi @(rustMessage.StartsWith("Error") ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill") me-2"></i>
+                                <div>@rustMessage</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- LocalStorage Section -->
+        <div class="col-md-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-dark text-white border-0 py-3">
+                    <h5 class="card-title mb-0">2. Storage Persistence</h5>
+                </div>
+                <div class="card-body text-center">
+                    <p class="text-muted small text-start">Verifying browser localStorage access for future DuckDB persistence layers.</p>
+                    
+                    <button class="btn btn-outline-secondary w-100 py-2 mb-3" @onclick="TestLocalStorage">
+                        <i class="bi bi-hdd-network me-2"></i> Run Persistence Test
+                    </button>
+
+                    @if (storageSuccess.HasValue) {
+                        <div class="alert @(storageSuccess.Value ? "alert-success" : "alert-danger") border-0 shadow-sm animate-fade-in text-start">
+                            <div class="d-flex">
+                                <i class="bi @(storageSuccess.Value ? "bi-database-check" : "bi-database-exclamation") me-2"></i>
+                                <div>@storageStatus</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-5 pt-4 border-top text-center text-muted">
+        <small>DALA Bridge Verification Utility &bull; v1.0.0 &bull; 2026 Standard</small>
+    </div>
+</div>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+@code {
+    private string userName = "Developer";
+    private string? rustMessage;
+    private bool isRustLoading = false;
+    
+    private bool? storageSuccess;
+    private string? storageStatus;
+
+    private async Task TestRustHello() {
+        try {
+            isRustLoading = true;
+            rustMessage = null;
+            // Add a tiny delay to show the spinner (simulating worker overhead)
+            await Task.Delay(300);
+            rustMessage = await RustEngine.SayHelloAsync(userName);
+        } catch (Exception ex) {
+            rustMessage = $"Error: {ex.Message}";
+        } finally {
+            isRustLoading = false;
+        }
+    }
+
+    private async Task TestLocalStorage() {
+        try {
+            const string key = "dala_diagnostic_key";
+            string value = $"verified_{DateTime.Now:yyyyMMdd_HHmmss}";
+            
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", key, value);
+            var retrieved = await JSRuntime.InvokeAsync<string>("localStorage.getItem", key);
+            
+            if (retrieved == value) {
+                storageSuccess = true;
+                storageStatus = $"Persistence Verified: Wrote and retrieved unique timestamp '{retrieved}'.";
+            } else {
+                storageSuccess = false;
+                storageStatus = $"Integrity Failure: Retrieved value '{retrieved}' did not match '{value}'.";
+            }
+        } catch (Exception ex) {
+            storageSuccess = false;
+            storageStatus = $"System Error: {ex.Message}";
+        }
+    }
+}

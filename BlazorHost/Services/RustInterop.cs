@@ -30,6 +30,12 @@ public class RustInterop : IAsyncDisposable
                ?? new OutlierSummary();
     }
 
+    public async Task<string> SayHelloAsync(string name)
+    {
+        await InitializeAsync();
+        return await _jsRuntime.InvokeAsync<string>("rustInterop.sayHello", name);
+    }
+
     public async ValueTask DisposeAsync()
     {
         // Add cleanup if needed
