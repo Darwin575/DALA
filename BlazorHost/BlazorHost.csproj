@@ -7,7 +7,7 @@
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <BlazorCacheBootResources>true</BlazorCacheBootResources>
     <BlazorWebAssemblyLoadAllAssembliesAsStream>true</BlazorWebAssemblyLoadAllAssembliesAsStream>
-    <BlazorFingerprintBlazorJs>true</BlazorFingerprintBlazorJs>
+    <BlazorFingerprintBlazorJs>false</BlazorFingerprintBlazorJs>
   </PropertyGroup>
 
   <ItemGroup>
