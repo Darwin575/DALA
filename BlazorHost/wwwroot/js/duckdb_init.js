@@ -1,16 +1,16 @@
 /**
  * DALA DuckDB Integration (Real Wasm Version)
  */
-import * as duckdb from './duckdb/duckdb-browser.mjs';
+import * as duckdb from '@duckdb/duckdb-wasm';
 
 const MANUAL_BUNDLES = {
     mvp: {
-        mainModule: 'js/duckdb/duckdb-mvp.wasm',
-        mainWorker: 'js/duckdb/duckdb-browser-mvp.worker.js',
+        mainModule: '/js/duckdb/duckdb-mvp.wasm',
+        mainWorker: '/js/duckdb/duckdb-browser-mvp.worker.js',
     },
     eh: {
-        mainModule: 'js/duckdb/duckdb-eh.wasm',
-        mainWorker: 'js/duckdb/duckdb-browser-eh.worker.js',
+        mainModule: '/js/duckdb/duckdb-eh.wasm',
+        mainWorker: '/js/duckdb/duckdb-browser-eh.worker.js',
     },
 };
 
