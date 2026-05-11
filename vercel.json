@@ -3,21 +3,38 @@
   "trailingSlash": false,
   "headers": [
     {
-      "source": "/_framework/(.*)",
+      "source": "/_framework/(.*).js",
       "headers": [
+        { "key": "Content-Type", "value": "application/javascript" },
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     },
     {
-      "source": "/js/(.*)",
+      "source": "/_framework/(.*).mjs",
       "headers": [
+        { "key": "Content-Type", "value": "application/javascript" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/js/(.*).js",
+      "headers": [
+        { "key": "Content-Type", "value": "application/javascript" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/js/(.*).mjs",
+      "headers": [
+        { "key": "Content-Type", "value": "application/javascript" },
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     },
     {
       "source": "/(.*).wasm",
       "headers": [
-        { "key": "Content-Type", "value": "application/wasm" }
+        { "key": "Content-Type", "value": "application/wasm" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
   ],
