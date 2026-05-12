@@ -1,16 +1,67 @@
-﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<MudThemeProvider Theme="@DalaTheme.DefaultTheme" IsDarkMode="true" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Inherit" Class="bg-darker">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Class="ml-3 fw-bold text-primary">DALA</MudText>
+        <MudSpacer />
+        
+        <div class="dala-search-container" style="width: 400px;">
+            <MudTextField T="string" 
+                          Placeholder="Ask DALA... (Ctrl + K)" 
+                          Variant="Variant.Outlined" 
+                          Margin="Margin.Dense" 
+                          Adornment="Adornment.Start" 
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Class="dala-search" />
         </div>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit" Href="https://github.com/Darwin575/DALA" Target="_blank" />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" ClipMode="DrawerClipMode.Always" Color="Color.Inherit">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">Tactical Shell</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="pt-16 px-4 pb-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("initDalaShortcuts");
+        }
+    }
+}
+
+<style>
+    .bg-darker {
+        background-color: #0f172a !important;
+    }
+    .dala-search .mud-input-outlined-border {
+        border-color: rgba(0, 242, 255, 0.2) !important;
+    }
+    .dala-search:focus-within .mud-input-outlined-border {
+        border-color: #00f2ff !important;
+    }
+</style>
