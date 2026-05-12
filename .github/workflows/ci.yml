@@ -74,15 +74,70 @@ jobs:
           find release_output/wwwroot/_framework \
             ! -name "*.gz" ! -name "*.br" | sort
 
-      # 4.6 Verify blazor entry file
-      - name: Verify blazor entry file
+      # 4.6 Materialize fingerprinted static assets for static hosting
+      # .NET 10 uses staticwebassets.endpoints.json for virtual route mapping.
+      # This only works with ASP.NET middleware. For static hosts like Vercel,
+      # we must create physical file copies for every virtual route.
+      - name: Materialize fingerprinted assets
         run: |
-          echo "=== blazor.webassembly.js must exist unfingerpinted ==="
-          ls -lh release_output/wwwroot/_framework/blazor.webassembly.js || echo "MISSING - only fingerprinted version exists"
-          echo "=== all blazor.* files ==="
-          ls release_output/wwwroot/_framework/blazor.*
-      
-      
+          MANIFEST="release_output/BlazorHost.staticwebassets.endpoints.json"
+          WWWROOT="release_output/wwwroot"
+
+          echo "=== Materializing fingerprinted routes as physical files ==="
+
+          # Extract unique route -> assetFile pairs where no Selector exists
+          # (i.e., the uncompressed variant), and where route != assetFile
+          python3 -c "
+          import json, os, shutil
+
+          with open('$MANIFEST') as f:
+              data = json.load(f)
+
+          copies_made = 0
+          for ep in data.get('Endpoints', []):
+              route = ep.get('Route', '')
+              asset = ep.get('AssetFile', '')
+              selectors = ep.get('Selectors', [])
+
+              # Only process entries with no content-encoding selector (uncompressed)
+              if selectors:
+                  continue
+
+              # Skip if route already matches the asset filename
+              if route == asset:
+                  continue
+
+              # Skip compressed variants
+              if route.endswith('.br') or route.endswith('.gz'):
+                  continue
+
+              src = os.path.join('$WWWROOT', asset)
+              dst = os.path.join('$WWWROOT', route)
+
+              if os.path.exists(src) and not os.path.exists(dst):
+                  os.makedirs(os.path.dirname(dst), exist_ok=True)
+                  shutil.copy2(src, dst)
+                  copies_made += 1
+                  print(f'  COPY: {asset} -> {route}')
+
+          print(f'Total files materialized: {copies_made}')
+          "
+
+          # Strip all pre-compressed .br and .gz files - Vercel handles compression
+          echo "=== Stripping pre-compressed files ==="
+          find "$WWWROOT" -name "*.br" -delete -o -name "*.gz" -delete
+          echo "Done stripping .br/.gz files"
+
+          # Verify critical files exist
+          echo "=== Verifying critical unfingerpinted files ==="
+          for f in blazor.webassembly.js dotnet.js dotnet.native.js dotnet.runtime.js; do
+            if [ -f "$WWWROOT/_framework/$f" ]; then
+              echo "  OK: _framework/$f ($(wc -c < "$WWWROOT/_framework/$f") bytes)"
+            else
+              echo "  MISSING: _framework/$f"
+              exit 1
+            fi
+          done
 
       # 5.5 Assemble Vercel Prebuilt Output
       - name: Prepare Vercel Prebuilt Output
@@ -105,29 +160,28 @@ jobs:
             "cleanUrls": true,
             "trailingSlash": false,
             "routes": [
-              { "src": "/_framework/blazor.boot.json", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
-              { "src": "/_framework/blazor.webassembly(.*)\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
-              { "src": "/_framework/(.*)\\.wasm", "headers": { "Content-Type": "application/wasm", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
-              { "src": "/_framework/(.*)\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
-              { "src": "/_framework/(.*)\\.mjs", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
-              { "src": "/_framework/(.*)\\.dat", "headers": { "Content-Type": "application/octet-stream", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
-              { "src": "/js/(.*)\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
-              { "src": "/js/(.*)\\.mjs", "headers": { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
-              { "src": "/(.*)\\.wasm", "headers": { "Content-Type": "application/wasm", "Cache-Control": "public, max-age=31536000, immutable" }, "continue": true },
+              { "src": "/_framework/blazor\\.webassembly\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "no-cache, no-store, must-revalidate" }, "continue": true },
+              { "src": "/_framework/dotnet\\.js", "headers": { "Content-Type": "application/javascript", "Cache-Control": "no-cache" }, "continue": true },
+              { "src": "/_framework/(.*)\\.wasm", "headers": { "Content-Type": "application/wasm" }, "continue": true },
+              { "src": "/_framework/(.*)\\.js", "headers": { "Content-Type": "application/javascript" }, "continue": true },
+              { "src": "/_framework/(.*)\\.mjs", "headers": { "Content-Type": "application/javascript" }, "continue": true },
+              { "src": "/_framework/(.*)\\.dat", "headers": { "Content-Type": "application/octet-stream" }, "continue": true },
+              { "src": "/js/(.*)\\.js", "headers": { "Content-Type": "application/javascript" }, "continue": true },
+              { "src": "/js/(.*)\\.mjs", "headers": { "Content-Type": "application/javascript" }, "continue": true },
+              { "src": "/(.*)\\.wasm", "headers": { "Content-Type": "application/wasm" }, "continue": true },
               { "handle": "filesystem" },
               { "src": "/(.*)", "dest": "/index.html", "status": 200 }
             ]
           }
           EOF
 
-          # Copy vercel.json into deploy_stage for the CLI to pick up
-          cp vercel.json deploy_stage/vercel.json
-
           # Debug output
           echo "=== Static root ==="
           ls -la deploy_stage/.vercel/output/static/
-          echo "=== _framework ==="
-          ls -la deploy_stage/.vercel/output/static/_framework/ || echo "_framework NOT FOUND"
+          echo "=== _framework (unfingerpinted JS files) ==="
+          ls -la deploy_stage/.vercel/output/static/_framework/*.js 2>/dev/null || echo "No JS files found"
+          echo "=== _framework file count ==="
+          find deploy_stage/.vercel/output/static/_framework -type f | wc -l
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v20
